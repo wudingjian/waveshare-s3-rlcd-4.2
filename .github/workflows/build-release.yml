@@ -1,0 +1,135 @@
+name: Build and Release Firmware
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:  # 允许手动触发
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        type: choice
+        options:
+        - v1.0.0
+        - v1.1.0
+        - v1.2.0
+        - v2.0.0
+      release_type:
+        description: 'Release type'
+        required: true
+        type: choice
+        options:
+        - stable
+        - beta
+        - alpha
+        default: 'stable'
+
+permissions:
+  contents: write
+
+env:
+  BUILD_TYPE: ${{ github.event.inputs.release_type || 'stable' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+    
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Setup ESP-IDF
+      uses: espressif/esp-idf-ci-action@v1
+      with:
+        esp_idf_version: v5.5.2
+        target: esp32s3
+    
+    - name: Setup secret config
+      run: |
+        if [ -f "./main/boards/waveshare-s3-rlcd-4.2/secret_config.h.example" ]; then
+          cp ./main/boards/waveshare-s3-rlcd-4.2/secret_config.h.example ./main/boards/waveshare-s3-rlcd-4.2/secret_config.h
+          echo "secret_config.h created from example"
+        else
+          echo "Warning: secret_config.h.example not found"
+          echo "// Empty config" > ./main/boards/waveshare-s3-rlcd-4.2/secret_config.h
+        fi
+    
+    - name: Build firmware
+      run: |
+        idf.py build
+        # 或者使用原始的脚本
+        # python scripts/release.py waveshare-s3-rlcd-4.2 --name waveshare-s3-rlcd-4.2
+    
+    - name: Package firmware
+      run: |
+        mkdir -p ./releases
+        # 复制固件文件到 releases 目录
+        cp ./build/*.zip ./releases/ 2>/dev/null || true
+        # 如果有打包脚本，使用它
+        if [ -f "scripts/release.py" ]; then
+          python scripts/release.py waveshare-s3-rlcd-4.2 --name waveshare-s3-rlcd-4.2
+        fi
+        
+        # 创建版本信息文件
+        echo "Version: ${{ github.event.inputs.version || github.ref_name }}" > ./releases/VERSION.txt
+        echo "Build Type: ${{ env.BUILD_TYPE }}" >> ./releases/VERSION.txt
+        echo "Build Date: $(date)" >> ./releases/VERSION.txt
+        echo "Commit: ${{ github.sha }}" >> ./releases/VERSION.txt
+    
+    - name: Upload firmware artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: firmware-${{ github.run_number }}
+        path: ./releases/
+        retention-days: 7
+  
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Download firmware
+      uses: actions/download-artifact@v4
+      with:
+        name: firmware-${{ github.run_number }}
+        path: ./releases
+    
+    - name: Determine version
+      id: get_version
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create Release
+      uses: ncipollo/release-action@v1
+      with:
+        tag: ${{ steps.get_version.outputs.VERSION }}
+        name: Release ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          Waveshare S3 RLCD 4.2 固件
+          
+          **构建信息:**
+          - 版本: ${{ steps.get_version.outputs.VERSION }}
+          - 类型: ${{ github.event.inputs.release_type || 'stable' }}
+          - 构建日期: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          - 提交: ${{ github.sha }}
+          
+          **使用说明:**
+          1. 下载对应的固件文件
+          2. 使用 ESP32 烧录工具进行烧录
+        draft: false
+        prerelease: ${{ github.event.inputs.release_type != 'stable' }}
+        artifacts: "./releases/*"
+        artifactErrorsFailBuild: false

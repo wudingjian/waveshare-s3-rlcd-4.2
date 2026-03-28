@@ -12,16 +12,6 @@ on:
         required: true
         type: string
         default: 'devapi.qweather.com'
-      timezone:
-        description: '时区配置 (例如：CST-8 表示中国时区)'
-        required: false
-        type: string
-        default: 'CST-8'
-      ntp_server:
-        description: 'NTP 时间同步服务器'
-        required: false
-        type: string
-        default: 'ntp.aliyun.com'
 
 env:
   IDF_VERSION: "v5.5.2"
@@ -45,8 +35,6 @@ jobs:
       run: |
         echo "Weather API Key: ${{ github.event.inputs.weather_api_key }}"
         echo "Weather API Host: ${{ github.event.inputs.weather_api_host }}"
-        echo "Timezone: ${{ github.event.inputs.timezone }}"
-        echo "NTP Server: ${{ github.event.inputs.ntp_server }}"
     
     - name: Checkout current repository
       uses: actions/checkout@v4
@@ -62,21 +50,15 @@ jobs:
     - name: Create secret_config.h with user inputs
       run: |
         cd xiaozhi-esp32
-        cat > ./main/boards/${{ env.BOARD_NAME }}/secret_config.h <<'EOF'
-#pragma once
-// ============================================================
-// 敏感配置 - 由 GitHub Actions 自动生成
-// 生成时间: $(date -u)
-// ============================================================
-// 和风天气 API 配置
-// 申请地址：https://dev.qweather.com/
-#define WEATHER_API_KEY     "${{ github.event.inputs.weather_api_key }}"
-#define WEATHER_API_HOST    "${{ github.event.inputs.weather_api_host }}"
-// 时区配置
-#define TIMEZONE_STRING     "${{ github.event.inputs.timezone }}"
-// NTP 时间同步服务器
-#define NTP_SERVER          "${{ github.event.inputs.ntp_server }}"
-EOF
+        # 首先复制示例文件
+        cp ./main/boards/${{ env.BOARD_NAME }}/secret_config.h.example ./main/boards/${{ env.BOARD_NAME }}/secret_config.h
+        
+        # 替换 API Key
+        sed -i "s/your_qweather_api_key_here/${{ github.event.inputs.weather_api_key }}/g" ./main/boards/${{ env.BOARD_NAME }}/secret_config.h
+        
+        # 替换 API Host
+        sed -i "s/your_host.re.qweatherapi.com/${{ github.event.inputs.weather_api_host }}/g" ./main/boards/${{ env.BOARD_NAME }}/secret_config.h
+        
         echo "✅ secret_config.h created with user inputs"
         echo ""
         echo "=== secret_config.h 内容预览 ==="

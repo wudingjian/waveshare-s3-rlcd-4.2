@@ -3,6 +3,9 @@
 
 https://www.bilibili.com/video/BV1kPF1z7Ewm/?spm_id_from=333.1391.0.0&vd_source=ea4a38c2402e8ebeaa9ec735833f7d68
 
+<iframe src="//player.bilibili.com/player.html?isOutside=true&aid=116131805268112&bvid=BV1PsfhBCEqA&cid=36284664951&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+
+
 ## 2.编译固件
 
 ### (1)git仓库

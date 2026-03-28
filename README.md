@@ -1,14 +1,6 @@
 # waveshare-s3-rlcd-4.2编译和刷写说明
-## 1.视频：
-<iframe
-    src="//player.bilibili.com/player.html?bvid=BV1PsfhBCEqA&page=1&high_quality=1&danmaku=0"
-    width="100%"
-    height="500"
-    frameborder="no"
-    scrolling="no"
-    allowfullscreen="true">
-</iframe>
-
+## 1. 📺 视频演示
+点击查看视频演示：[B站视频 BV1PsfhBCEqA](https://www.bilibili.com/video/BV1PsfhBCEqA)
 
 ## 2.编译固件
 

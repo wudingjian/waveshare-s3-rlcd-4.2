@@ -62,7 +62,7 @@ jobs:
     - name: Create secret_config.h with user inputs
       run: |
         cd xiaozhi-esp32
-        cat > ./main/boards/${{ env.BOARD_NAME }}/secret_config.h << EOF
+        cat > ./main/boards/${{ env.BOARD_NAME }}/secret_config.h <<'EOF'
 #pragma once
 // ============================================================
 // 敏感配置 - 由 GitHub Actions 自动生成

@@ -1,39 +1,37 @@
 name: Build and Release ESP32 Firmware
 
 on:
-  workflow_dispatch:  # 允许手动触发
-  push:
-    tags:
-      - 'v*'  # 当推送版本标签时触发，如 v1.0.0
-  pull_request:
-    branches: [ main, master ]
+  workflow_dispatch:  # 只允许手动触发
 
 env:
   IDF_VERSION: "v5.5.2"
   BOARD_NAME: "waveshare-s3-rlcd-4.2"
-  RELEASE_DIR: "./releases"
+  UPSTREAM_REPO: "https://github.com/ZhouhaoJiang/xiaozhi-esp32"
 
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive  # 如果有子模块，递归拉取
-        fetch-depth: 0
+    - name: Generate version number
+      id: version
+      run: |
+        # 生成版本号：YYYY.MM.DD-HHMMSS
+        VERSION=$(date -u +"%Y.%m.%d-%H%M%S")
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Generated version: $VERSION"
     
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+    - name: Checkout current repository
+      uses: actions/checkout@v4
     
     - name: Clone xiaozhi-esp32 repository
       run: |
-        git clone https://github.com/ZhouhaoJiang/xiaozhi-esp32
+        echo "Cloning upstream repository..."
+        rm -rf xiaozhi-esp32
+        git clone --depth 1 ${{ env.UPSTREAM_REPO }}
         cd xiaozhi-esp32
-        
+        echo "Upstream commit: $(git rev-parse HEAD)"
+    
     - name: Create secret_config.h from example
       run: |
         cd xiaozhi-esp32
@@ -48,31 +46,27 @@ jobs:
     - name: Build firmware using Docker
       run: |
         cd xiaozhi-esp32
+        echo "Starting firmware build..."
         docker run --rm \
           -v $PWD:/project \
           -w /project \
           espressif/idf:${{ env.IDF_VERSION }} \
           bash -c "source \$IDF_PATH/export.sh && python scripts/release.py ${{ env.BOARD_NAME }} --name ${{ env.BOARD_NAME }}"
+        echo "Build completed!"
     
     - name: List generated firmware files
       run: |
         echo "Generated files in releases directory:"
-        find ./xiaozhi-esp32/releases -type f -name "*.bin" -o -name "*.elf" -o -name "*.map" | xargs ls -la
-        
-    - name: Upload firmware as artifact
-      uses: actions/upload-artifact@v4
-      if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-      with:
-        name: firmware-artifacts
-        path: |
-          ./xiaozhi-esp32/releases/
-        retention-days: 7
+        ls -la ./xiaozhi-esp32/releases/
+        echo ""
+        echo "ZIP files found:"
+        find ./xiaozhi-esp32/releases -name "*.zip" -type f
     
-    - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/v')
+    - name: Create Release with date-based version
       uses: softprops/action-gh-release@v1
       with:
-        name: Release ${{ github.ref_name }}
+        name: Release ${{ steps.version.outputs.version }}
+        tag_name: ${{ steps.version.outputs.version }}
         draft: false
         prerelease: false
         generate_release_notes: true
@@ -80,3 +74,11 @@ jobs:
           ./xiaozhi-esp32/releases/*.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Upload firmware as artifact (for debugging)
+      uses: actions/upload-artifact@v4
+      with:
+        name: firmware-${{ steps.version.outputs.version }}
+        path: |
+          ./xiaozhi-esp32/releases/*.zip
+        retention-days: 30

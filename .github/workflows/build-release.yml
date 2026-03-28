@@ -1,17 +1,33 @@
 name: Build and Release ESP32 Firmware
-
 on:
-  workflow_dispatch:  # 只允许手动触发
-
+  workflow_dispatch:
+    inputs:
+      weather_api_key:
+        description: '和风天气 API Key (申请地址：https://dev.qweather.com/)'
+        required: true
+        type: string
+      weather_api_host:
+        description: '和风天气 API Host (例如：devapi.qweather.com)'
+        required: true
+        type: string
+        default: 'devapi.qweather.com'
+      timezone:
+        description: '时区配置 (例如：CST-8 表示中国时区)'
+        required: false
+        type: string
+        default: 'CST-8'
+      ntp_server:
+        description: 'NTP 时间同步服务器'
+        required: false
+        type: string
+        default: 'ntp.aliyun.com'
 env:
   IDF_VERSION: "v5.5.2"
   BOARD_NAME: "waveshare-s3-rlcd-4.2"
   UPSTREAM_REPO: "https://github.com/ZhouhaoJiang/xiaozhi-esp32"
-
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
-    
     steps:
     - name: Generate version number
       id: version
@@ -20,10 +36,14 @@ jobs:
         VERSION=$(date -u +"%Y.%m.%d-%H%M%S")
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Generated version: $VERSION"
-    
+    - name: Display user inputs
+      run: |
+        echo "Weather API Key: ${{ github.event.inputs.weather_api_key }}"
+        echo "Weather API Host: ${{ github.event.inputs.weather_api_host }}"
+        echo "Timezone: ${{ github.event.inputs.timezone }}"
+        echo "NTP Server: ${{ github.event.inputs.ntp_server }}"
     - name: Checkout current repository
       uses: actions/checkout@v4
-    
     - name: Clone xiaozhi-esp32 repository
       run: |
         echo "Cloning upstream repository..."
@@ -31,18 +51,43 @@ jobs:
         git clone --depth 1 ${{ env.UPSTREAM_REPO }}
         cd xiaozhi-esp32
         echo "Upstream commit: $(git rev-parse HEAD)"
-    
-    - name: Create secret_config.h from example
+    - name: Create secret_config.h with user inputs
       run: |
         cd xiaozhi-esp32
-        if [ -f "./main/boards/${{ env.BOARD_NAME }}/secret_config.h.example" ]; then
-          cp ./main/boards/${{ env.BOARD_NAME }}/secret_config.h.example ./main/boards/${{ env.BOARD_NAME }}/secret_config.h
-          echo "✅ secret_config.h created from example"
-        else
-          echo "⚠️ secret_config.h.example not found, creating empty secret_config.h"
-          echo "// Empty secret config - fill with your own values" > ./main/boards/${{ env.BOARD_NAME }}/secret_config.h
-        fi
-    
+        cat > ./main/boards/${{ env.BOARD_NAME }}/secret_config.h <<EOF
+#pragma once
+
+// ============================================================
+// 敏感配置模板 - 请复制此文件为 secret_config.h 并填入真实值
+// cp secret_config.h.example secret_config.h
+//
+// 注意：secret_config.h 已被 .gitignore 忽略，不会提交到仓库
+// ============================================================
+
+// 和风天气 API 配置
+// 申请地址：https://dev.qweather.com/
+#define WEATHER_API_KEY     "${{ github.event.inputs.weather_api_key }}"
+#define WEATHER_API_HOST    "${{ github.event.inputs.weather_api_host }}"
+
+// 时区配置
+// 格式参考：https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
+// 常见值：
+//   中国 (UTC+8):  "CST-8"
+//   日本 (UTC+9):  "JST-9"
+//   美西 (UTC-8):  "PST8PDT"
+//   美东 (UTC-5):  "EST5EDT"
+#define TIMEZONE_STRING     "${{ github.event.inputs.timezone }}"
+
+// NTP 时间同步服务器
+// 国内推荐：ntp.aliyun.com / ntp.tencent.com
+// 海外推荐：pool.ntp.org / time.google.com
+#define NTP_SERVER          "${{ github.event.inputs.ntp_server }}"
+EOF
+        echo "✅ secret_config.h created with user inputs"
+        echo ""
+        echo "=== secret_config.h 内容预览 ==="
+        cat ./main/boards/${{ env.BOARD_NAME }}/secret_config.h
+        echo "================================"
     - name: Build firmware using Docker
       run: |
         cd xiaozhi-esp32
@@ -53,7 +98,6 @@ jobs:
           espressif/idf:${{ env.IDF_VERSION }} \
           bash -c "source \$IDF_PATH/export.sh && python scripts/release.py ${{ env.BOARD_NAME }} --name ${{ env.BOARD_NAME }}"
         echo "Build completed!"
-    
     - name: List generated firmware files
       run: |
         echo "Generated files in releases directory:"
@@ -61,7 +105,6 @@ jobs:
         echo ""
         echo "ZIP files found:"
         find ./xiaozhi-esp32/releases -name "*.zip" -type f
-    
     - name: Create Release with date-based version
       uses: softprops/action-gh-release@v1
       with:
@@ -74,7 +117,6 @@ jobs:
           ./xiaozhi-esp32/releases/*.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
     - name: Upload firmware as artifact (for debugging)
       uses: actions/upload-artifact@v4
       with:
@@ -82,3 +124,9 @@ jobs:
         path: |
           ./xiaozhi-esp32/releases/*.zip
         retention-days: 30
+    - name: Clean up secret_config.h
+      run: |
+        cd xiaozhi-esp32
+        # 清理敏感信息
+        rm -f ./main/boards/${{ env.BOARD_NAME }}/secret_config.h
+        echo "✅ secret_config.h 已清理"

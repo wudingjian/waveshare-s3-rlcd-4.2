@@ -5,18 +5,19 @@ https://www.bilibili.com/video/BV1kPF1z7Ewm/?spm_id_from=333.1391.0.0&vd_source=
 
 ## 2.编译固件
 
-```cd
-git clone  https://github.com/ZhouhaoJiang/xiaozhi-esp32
+### (1)git仓库
+```git
+git clone https://github.com/ZhouhaoJiang/xiaozhi-esp32
 cd xiaozhi-esp32
-cp /data/docker_build/xiaozhi-esp32/main/boards/waveshare-s3-rlcd-4.2/secret_config.h.example /data/docker_build/xiaozhi-esp32/main/boards/waveshare-s3-rlcd-4.2/secret_config.h
+cp ./main/boards/waveshare-s3-rlcd-4.2/secret_config.h.example ./main/boards/waveshare-s3-rlcd-4.2/secret_config.h
 ```
 
-对secret_config.h进行填写
-
+### (2)填写和风天气 API 配置(secret_config.h)
+``` 
 > // 和风天气 API 配置
 > // 申请地址：https://dev.qweather.com/
-> #define WEATHER_API_KEY     "dfa3d44f057a4026878814af10ca74fe"
-> #define WEATHER_API_HOST    "nn73jquuaj.re.qweatherapi.com"
+> #define WEATHER_API_KEY     "填写API_KEY"
+> #define WEATHER_API_HOST    "填写API_HOST"
 >
 > // 时区配置
 > // 格式参考：https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
@@ -31,14 +32,12 @@ cp /data/docker_build/xiaozhi-esp32/main/boards/waveshare-s3-rlcd-4.2/secret_con
 > // 国内推荐：ntp.aliyun.com / ntp.tencent.com
 > // 海外推荐：pool.ntp.org / time.google.com
 > #define NTP_SERVER          "ntp.aliyun.com"
-
-```VBA
+```
+### (3)编译固件
+```docker run
 docker run --rm -it -v $PWD:/project -w /project espressif/idf:v5.5.2 bash -c "source \$IDF_PATH/export.sh && python scripts/release.py waveshare-s3-rlcd-4.2 --name waveshare-s3-rlcd-4.2"
 ```
-
-编译
-
-成果：/data/docker_build/xiaozhi-esp32/releases/
+编译成果：./releases/
 
 ## 3.刷写固件
 
